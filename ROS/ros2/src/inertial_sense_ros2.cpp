@@ -196,7 +196,7 @@ void InertialSenseROS::initializeROS()
     if (rs_.diagnostics.enabled)
     {
         rs_.diagnostics.pub_diagnostics = nh_->create_publisher<diagnostic_msgs::msg::DiagnosticArray>("diagnostics", 1);
-        diagnostics_timer_ = nh_->create_timer(0.5s, std::bind(InertialSenseROS::diagnostics_callback, this)); // 2 Hz
+        diagnostics_timer_ = nh_->create_wall_timer(0.5s, std::bind(InertialSenseROS::diagnostics_callback, this)); // 2 Hz
     }
 
     data_stream_timer_ = nh_->create_wall_timer(1s, [this]() { this->configure_data_streams(false); });
@@ -1251,7 +1251,10 @@ void InertialSenseROS::INS4_callback(eDataIDs DID, const ins_4_t *const msg)
             // Angular Velocity
             ixVector3 result;
             ixEuler theta;
-            quat2euler(msg->qe2b, theta);
+            ixQuat aligned_qe2b;  // Properly aligned buffer
+            memcpy(aligned_qe2b, msg->qe2b, sizeof(aligned_qe2b));  // Copy to aligned buffer
+            quat2euler(aligned_qe2b, theta);
+            //quat2euler(msg->qe2b, theta);  // BUS ERROR (CORE DUMP)
             ixVector3 angVelImu = {(f_t)msg_imu.angular_velocity.x, (f_t)msg_imu.angular_velocity.y, (f_t)msg_imu.angular_velocity.z};
             vectorBodyToReference(angVelImu, theta, result);
 
@@ -1312,7 +1315,10 @@ void InertialSenseROS::INS4_callback(eDataIDs DID, const ins_4_t *const msg)
 
                 // Position
                 ixVector3d llaPosRadians;
-                ecef2lla(msg->ecef, llaPosRadians);
+                ixVector3d aligned_ecef;
+                memcpy(aligned_ecef, msg->ecef, sizeof(aligned_ecef));  // Copy to aligned buffer
+                ecef2lla(aligned_ecef, llaPosRadians);
+                //ecef2lla(msg->ecef, llaPosRadians);  // BUS ERROR (CORE DUMP)
                 ixVector3 ned;
                 ixVector3d refLlaRadians;
                 lla_Deg2Rad_d(refLlaRadians, refLla_);
@@ -1330,8 +1336,10 @@ void InertialSenseROS::INS4_callback(eDataIDs DID, const ins_4_t *const msg)
 
                 // Linear Velocity
                 ixVector3 result, theta;
-
-                quatConjRot(result, qe2n, msg->ve);
+                ixVector3 aligned_ve;
+                memcpy(aligned_ve, msg->ve, sizeof(aligned_ve));  // Copy to aligned buffer
+                quatConjRot(result, qe2n, aligned_ve);
+                //quatConjRot(result, qe2n, msg->ve);  // BUS ERROR (CORE DUMP)
 
                 msg_odom_ned.twist.twist.linear.x = result[0];
                 msg_odom_ned.twist.twist.linear.y = result[1];
@@ -1405,7 +1413,10 @@ void InertialSenseROS::INS4_callback(eDataIDs DID, const ins_4_t *const msg)
 
                 // Position
                 ixVector3d llaPosRadians;
-                ecef2lla(msg->ecef, llaPosRadians);
+                ixVector3d aligned_ecef;
+                memcpy(aligned_ecef, msg->ecef, sizeof(aligned_ecef));  // Copy to aligned buffer
+                ecef2lla(aligned_ecef, llaPosRadians);
+                //ecef2lla(msg->ecef, llaPosRadians);  // BUS ERROR (CORE DUMP)
                 ixVector3 ned;
                 ixVector3d refLlaRadians;
                 lla_Deg2Rad_d(refLlaRadians, refLla_);
@@ -1425,7 +1436,10 @@ void InertialSenseROS::INS4_callback(eDataIDs DID, const ins_4_t *const msg)
                 // Linear Velocity
                     //same as NED but rearranged.
                 ixVector3 result, theta;
-                quatConjRot(result, qe2n, msg->ve);
+                ixVector3 aligned_ve;
+                memcpy(aligned_ve, msg->ve, sizeof(aligned_ve));  // Copy to aligned buffer
+                quatConjRot(result, qe2n, aligned_ve);
+                //quatConjRot(result, qe2n, msg->ve);  // BUS ERROR (CORE DUMP)
 
                 msg_odom_enu.twist.twist.linear.x = result[1];
                 msg_odom_enu.twist.twist.linear.y = result[0];
