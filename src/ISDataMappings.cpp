@@ -1968,7 +1968,10 @@ double cISDataMappings::Timestamp(const p_data_hdr_t* hdr, const uint8_t* buf)
             }
             else if (ds->timestampFields->type == DATA_TYPE_UINT32)
             {   // field is milliseconds, convert to seconds
-                return 0.001 * protectUnalignedAssign<uint32_t>((void *)ptr);
+                uint32_t aligned_value;
+                memcpy(&aligned_value, ptr, sizeof(aligned_value));
+                return 0.001 * aligned_value;
+                //return 0.001 * protectUnalignedAssign<uint32_t>((void *)ptr);
             }
         }
     }

@@ -111,7 +111,7 @@ void InertialSenseROS::initializeIS(bool configFlashParameters)
         IS_.StopBroadcasts(true);
         initializeROS();
         configure_data_streams(true);
-        //configure_rtk();
+        configure_rtk();
         IS_.SavePersistent();
 
         if (configFlashParameters)
