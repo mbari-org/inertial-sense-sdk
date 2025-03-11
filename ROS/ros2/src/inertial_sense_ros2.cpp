@@ -162,6 +162,7 @@ void InertialSenseROS::initializeROS()
         rs_.rtk_pos.pubInfo = nh_->create_publisher<inertial_sense_ros2::msg::RTKInfo>("RTK_pos/info", 10);
         rs_.rtk_pos.pubRel = nh_->create_publisher<inertial_sense_ros2::msg::RTKRel>("RTK_pos/rel", 10);
     }
+    GNSS_Compass_ = RTK_rover_->compassing_enable;
     if (GNSS_Compass_)
     {
         rs_.rtk_cmp.pubInfo = nh_->create_publisher<inertial_sense_ros2::msg::RTKInfo>("RTK_cmp/info", 10);
