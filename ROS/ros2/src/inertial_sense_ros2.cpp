@@ -2321,6 +2321,52 @@ bool InertialSenseROS::set_current_position_as_refLLA(std_srvs::srv::Trigger::Re
 
 bool InertialSenseROS::set_refLLA_to_value(inertial_sense_ros2::srv::RefLLAUpdate::Request::SharedPtr req, inertial_sense_ros2::srv::RefLLAUpdate::Response::SharedPtr res)
 {
+    // Send updated refLLA to flash
+    IS_.SendData(DID_FLASH_CONFIG, reinterpret_cast<uint8_t *>(&req->lla), sizeof(req->lla), offsetof(nvm_flash_cfg_t, refLla));
+
+    // Give it some time to process
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Ask for updated flash config
+    comManagerGetData(0, DID_FLASH_CONFIG, 0, 0, 0);
+
+    nvm_flash_cfg_t current_flash;
+    const int max_attempts = 50;
+    int attempt = 0;
+
+    while (attempt < max_attempts)
+    {
+        comManagerStep();
+        IS_.FlashConfig(current_flash);
+
+        if (current_flash.refLla[0] == req->lla[0] &&
+            current_flash.refLla[1] == req->lla[1] &&
+            current_flash.refLla[2] == req->lla[2])
+        {
+            // Success
+            res->success = true;
+            res->message = ("Update was successful. refLla: Lat: " + std::to_string(req->lla[0]) +
+                          "  Lon: " + std::to_string(req->lla[1]) +
+                          "  Alt: " + std::to_string(req->lla[2]));
+            return true;
+        }
+
+        // Re-request flash config every few steps
+        if (attempt % 5 == 0)
+        {
+            comManagerGetData(0, DID_FLASH_CONFIG, 0, 0, 0);
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        attempt++;
+    }
+
+    // Timeout/failure
+    res->success = false;
+    res->message = "Unable to update refLLA. Please try again.";
+    return true;
+}
+/* ORIGINAL CODE {
     IS_.SendData(DID_FLASH_CONFIG, reinterpret_cast<uint8_t *>(&req->lla), sizeof(req->lla), offsetof(nvm_flash_cfg_t, refLla));
 
     comManagerGetData(0, DID_FLASH_CONFIG, 0, 0, 0);
@@ -2352,7 +2398,7 @@ bool InertialSenseROS::set_refLLA_to_value(inertial_sense_ros2::srv::RefLLAUpdat
    }
 
     return true;
-}
+}*/
 
 bool InertialSenseROS::perform_mag_cal_srv_callback(std_srvs::srv::Trigger::Request::SharedPtr req, std_srvs::srv::Trigger::Response::SharedPtr res)
 {
