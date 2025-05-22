@@ -1141,6 +1141,7 @@ void InertialSenseROS::INS2_callback(eDataIDs DID, const ins_2_t *const msg)
     if (rs_.did_ins2.enabled)
     {
         // Standard DID_INS_2 message
+        msg_did_ins2.header.stamp = ros_time_from_week_and_tow(msg->week, msg->timeOfWeek);
         msg_did_ins2.header.frame_id = frame_id_;
         msg_did_ins2.week = msg->week;
         msg_did_ins2.time_of_week = msg->timeOfWeek;
