@@ -1021,7 +1021,7 @@ void InertialSenseROS::configure_rtk()
                 start_rtk_server(*ntrip_provider);
             }
         }
-
+        rtkConfigBits_ |= RTK_CFG_BITS_BASE_OUTPUT_GPS1_RTCM3_SER2; // 0x400 — MSM out on S2 for PPK
         IS_.SendData(DID_FLASH_CONFIG, reinterpret_cast<uint8_t *>(&rtkConfigBits_), sizeof(rtkConfigBits_), offsetof(nvm_flash_cfg_t, RTKCfgBits));
     }
     else
@@ -1084,7 +1084,10 @@ void InertialSenseROS::flash_config_callback(eDataIDs DID, const nvm_flash_cfg_t
 {
     STREAMING_CHECK(flashConfigStreaming_, DID);
 
-    setRefLla(msg->refLla);
+    //setRefLla(msg->refLla);  // BUS ERROR (CORE DUMP)
+    double aligned_refLla[3];  // Properly aligned buffer
+    memcpy(aligned_refLla, msg->refLla, sizeof(aligned_refLla));  // Copy to aligned buffer
+    setRefLla(aligned_refLla);
 }
 
 void InertialSenseROS::setRefLla(const double refLla[3])
