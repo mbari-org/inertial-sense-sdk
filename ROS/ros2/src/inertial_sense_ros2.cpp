@@ -2621,8 +2621,12 @@ rclcpp::Time InertialSenseROS::ros_time_from_week_and_tow(const uint32_t week, c
             double y_offset = nh_->now().seconds() - timeOfWeek;
             INS_local_offset_ = 0.005 * y_offset + 0.995 * INS_local_offset_;
         }
-        // Publish with ROS time
-        rostime = rclcpp::Time(INS_local_offset_ + timeOfWeek);
+        // Publish with ROS time.  Split into sec/nsec - the single argument rclcpp::Time() constructor
+        // takes NANOSECONDS, so passing seconds there yields a stamp ~1e9 times too small.
+        double localTime = INS_local_offset_ + timeOfWeek;
+        uint64_t sec = (uint64_t)floor(localTime);
+        uint64_t nsec = (uint64_t)((localTime - floor(localTime)) * 1.0e9);
+        rostime = rclcpp::Time(sec, nsec);
     }
     return rostime;
 }
@@ -2652,8 +2656,12 @@ rclcpp::Time InertialSenseROS::ros_time_from_start_time(const double time)
             double y_offset = nh_->now().seconds() - time;
             INS_local_offset_ = 0.005 * y_offset + 0.995 * INS_local_offset_;
         }
-        // Publish with ROS time
-        rostime = rclcpp::Time(INS_local_offset_ + time);
+        // Publish with ROS time.  Split into sec/nsec - the single argument rclcpp::Time() constructor
+        // takes NANOSECONDS, so passing seconds there yields a stamp ~1e9 times too small.
+        double localTime = INS_local_offset_ + time;
+        uint64_t sec = (uint64_t)floor(localTime);
+        uint64_t nsec = (uint64_t)((localTime - floor(localTime)) * 1.0e9);
+        rostime = rclcpp::Time(sec, nsec);
     }
     return rostime;
 }
