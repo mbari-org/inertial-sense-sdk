@@ -119,6 +119,12 @@ sensors:
       topic: "strobe_in"
       enable: true
 
+system:
+  messages:
+    sys_fault:      # Publish DID_SYS_FAULT system fault status (device pushes this; no period to configure)
+      topic: "sys_fault"
+      enable: true
+
 gps1:
   type: 'M8'
   antenna_offset: [0, 0, 0]                     # X,Y,Z offset in meters in Sensor Frame to GPS 1 antenna

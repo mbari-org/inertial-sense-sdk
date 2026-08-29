@@ -115,6 +115,9 @@ Topics are enabled and disabled using parameters.  By default, only the `ins` to
 - `baro` (sensor_msgs/msg/FluidPressure)
    -  Raw barometer measurements in kPa
 
+- `sys_fault` (inertial_sense_ros2/msg/SysFault)
+   -  System fault status [DID_SYS_FAULT](https://docs.inertialsense.com/user-manual/com-protocol/DID-descriptions/#did_sys_fault).  The device reports this once on connect (the cause of the last reset) and then every 10 seconds while a critical fault is latched.  `status` is the raw bit field; the `STATUS_*`/`MASK_*` constants in the message define the bits, and `status_hex`/`status_str` carry the same value pre-formatted for convenience.  The topic uses transient local (latched) QoS, so a late subscriber still receives the most recent fault.
+
 - `NavSatFix`(sensor_msgs/msg/NavSatFix)
    -  Standard ROS sensor_msgs/NavSatFix data
 - `gps1`(inertial_sense_ros2/msg/gps1)
@@ -200,6 +203,8 @@ The Inertial Sense ROS parameters must contain the prefix `nh_`  (i.e. `nh_ navi
    -  Flag to stream INS2 state data
 - `~msg/inls2_states/period` (int, default: 1)
    - Configures period multiple of data set stream rate
+- `~msg/sys_fault/enable` (bool, default: true)
+   - Flag to publish DID_SYS_FAULT system fault status.  There is no period parameter - the device pushes this data set on its own.
 - `~msg/imu/enable` (bool, default: false)
    - Flag to stream IMU measurements or not
 - `~msg/imu/period` (int, default: 1)   

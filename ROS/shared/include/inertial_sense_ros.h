@@ -62,6 +62,7 @@
 #include "inertial_sense_ros2/msg/didins2.hpp"
 #include "inertial_sense_ros2/msg/didins1.hpp"
 #include "inertial_sense_ros2/msg/didins4.hpp"
+#include "inertial_sense_ros2/msg/sys_fault.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "std_msgs/msg/header.hpp"
@@ -261,6 +262,9 @@ public:
     void baro_callback(eDataIDs DID, const barometer_t *const msg);
     void preint_IMU_callback(eDataIDs DID, const pimu_t *const msg);
     void strobe_in_time_callback(eDataIDs DID, const strobe_in_time_t *const msg);
+#ifdef ROS2
+    void sys_fault_callback(eDataIDs DID, const system_fault_t *const msg);
+#endif
     void diagnostics_callback( ROS1_TIMEREVENT_ARG );
     void GPS_pos_callback(eDataIDs DID, const gps_pos_t *const msg);
     void GPS_vel_callback(eDataIDs DID, const gps_vel_t *const msg);
@@ -301,6 +305,7 @@ public:
         TopicHelper magnetometer;
         TopicHelper barometer;
         TopicHelper strobe_in;
+        TopicHelper sys_fault;
 
         TopicHelperGps gps1;
         TopicHelperGps gps2;
@@ -487,6 +492,9 @@ public:
     geometry_msgs::msg::Vector3Stamped gps2_velEcef;
     msg::GPSInfo msg_gps1_info;
     msg::GPSInfo msg_gps2_info;
+    msg::SysFault msg_sys_fault;
+    uint32_t sys_fault_status_last_ = 0;
+    bool sys_fault_status_valid_ = false;
 #endif
 
 #ifdef ROS1

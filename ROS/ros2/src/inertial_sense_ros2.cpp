@@ -132,6 +132,11 @@ void InertialSenseROS::initializeROS()
 
     SET_CALLBACK(DID_STROBE_IN_TIME, strobe_in_time_t, strobe_in_time_callback, 0); // we always want the strobe
 
+    // DID_SYS_FAULT is pushed by the device on its own (every 10s while a critical fault is latched), so it
+    // is registered here rather than in configure_data_streams().  A stream that is normally silent would
+    // stall the CONFIG_STREAM retry loop, since TopicHelper::streaming would never become true.
+    SET_CALLBACK(DID_SYS_FAULT, system_fault_t, sys_fault_callback, 0);              // we always want system faults
+
     //////////////////////////////////////////////////////////
     // Publishers
     strobe_pub_ = nh_->create_publisher<std_msgs::msg::Header>(rs_.strobe_in.topic, 1);
@@ -145,6 +150,8 @@ void InertialSenseROS::initializeROS()
     if (rs_.odom_ins_enu.enabled)           { rs_.odom_ins_enu.pub_odometry  = nh_->create_publisher<nav_msgs::msg::Odometry>(rs_.odom_ins_enu.topic, 1); }
     if (rs_.odom_ins_ecef.enabled)          { rs_.odom_ins_ecef.pub_odometry = nh_->create_publisher<nav_msgs::msg::Odometry>(rs_.odom_ins_ecef.topic, 1); }
     if (rs_.inl2_states.enabled)            { rs_.inl2_states.pub_inl2   = nh_->create_publisher<inertial_sense_ros2::msg::INL2States>(rs_.inl2_states.topic, 1); }
+    // Faults are rare and latched - use transient local durability so subscribers that come up late still get the last one.
+    if (rs_.sys_fault.enabled)              { rs_.sys_fault.pub_sys_fault = nh_->create_publisher<inertial_sense_ros2::msg::SysFault>(rs_.sys_fault.topic, rclcpp::QoS(1).transient_local()); }
 
    if (rs_.pimu.enabled)                   { rs_.pimu.pub_pimu = nh_->create_publisher<inertial_sense_ros2::msg::PIMU>(rs_.pimu.topic, 1); }
    if (rs_.imu.enabled)                    { rs_.imu.pub_imu = nh_->create_publisher<sensor_msgs::msg::Imu>(rs_.imu.topic, 1); }
@@ -451,6 +458,15 @@ void InertialSenseROS::load_params(YAML::Node &node)
     YAML::Node rtkBaseNode = ph.node(node, "rtk_base");
     if (rtkBaseNode.IsDefined() && !rtkBaseNode.IsNull())
         RTK_base_ = new RtkBaseProvider(rtkBaseNode);
+
+    // System
+    YAML::Node systemNode = ph.node(node, "system");
+    YAML::Node systemMsgs = ph.node(systemNode, "messages", 2);
+
+    bool sys_fault_enable = nh_->declare_parameter<bool>("msg/sys_fault/enable", true);
+    // DID_SYS_FAULT is pushed by the device, so there is no period/data rate to configure.
+    ph.msgParams(rs_.sys_fault, "sys_fault", "sys_fault", true, 1, sys_fault_enable);
+    node["system"]["messages"] = systemMsgs;
 
     YAML::Node diagNode = ph.node(node, "diagnostics");
     bool rs_diagnostics_enabled = nh_->declare_parameter<bool>("msg/diagnostics/enable", false);
@@ -1759,6 +1775,94 @@ void InertialSenseROS::strobe_in_time_callback(eDataIDs DID, const strobe_in_tim
         }
         break;
     }
+}
+
+/**
+ * Decode DID_SYS_FAULT.status (eSysFaultStatus) into a comma separated list of the bit names.
+ */
+static std::string sys_fault_status_to_string(uint32_t status)
+{
+    static const struct { uint32_t bit; const char *name; } bits[] = {
+        { SYS_FAULT_STATUS_USER_RESET,                     "USER_RESET" },
+        { SYS_FAULT_STATUS_ENABLE_BOOTLOADER,              "ENABLE_BOOTLOADER" },
+        { SYS_FAULT_STATUS_SOFT_RESET,                     "SOFT_RESET" },
+        { SYS_FAULT_STATUS_FLASH_MIGRATION_EVENT,          "FLASH_MIGRATION_EVENT" },
+        { SYS_FAULT_STATUS_FLASH_MIGRATION_COMPLETED,      "FLASH_MIGRATION_COMPLETED" },
+        { SYS_FAULT_STATUS_RTK_MISC_ERROR,                 "RTK_MISC_ERROR" },
+        { SYS_FAULT_STATUS_MCUBOOT_SWAP_FAILURE,           "MCUBOOT_SWAP_FAILURE" },
+        { SYS_FAULT_STATUS_HARD_FAULT,                     "HARD_FAULT" },
+        { SYS_FAULT_STATUS_USAGE_FAULT,                    "USAGE_FAULT" },
+        { SYS_FAULT_STATUS_MEM_MANGE,                      "MEM_MANAGE" },
+        { SYS_FAULT_STATUS_BUS_FAULT,                      "BUS_FAULT" },
+        { SYS_FAULT_STATUS_MALLOC_FAILED,                  "MALLOC_FAILED" },
+        { SYS_FAULT_STATUS_STACK_OVERFLOW,                 "STACK_OVERFLOW" },
+        { SYS_FAULT_STATUS_INVALID_CODE_OPERATION,         "INVALID_CODE_OPERATION" },
+        { SYS_FAULT_STATUS_FLASH_MIGRATION_MARKER_UPDATED, "FLASH_MIGRATION_MARKER_UPDATED" },
+        { SYS_FAULT_STATUS_WATCHDOG_RESET,                 "WATCHDOG_RESET" },
+        { SYS_FAULT_STATUS_RTK_BUFFER_LIMIT,               "RTK_BUFFER_LIMIT" },
+        { SYS_FAULT_STATUS_SENSOR_CALIBRATION,             "SENSOR_CALIBRATION" },
+        { SYS_FAULT_STATUS_HARDWARE_DETECTION,             "HARDWARE_DETECTION" },
+    };
+
+    std::string str;
+    for (const auto &b : bits)
+    {
+        if (status & b.bit)
+        {
+            if (!str.empty())
+                str += ", ";
+            str += b.name;
+        }
+    }
+
+    if (str.empty())
+        str = (status == SYS_FAULT_STATUS_HARDWARE_RESET) ? "HARDWARE_RESET" : "UNKNOWN";
+
+    return str;
+}
+
+void InertialSenseROS::sys_fault_callback(eDataIDs DID, const system_fault_t *const msg)
+{
+    rs_.sys_fault.streamingCheck(DID);
+
+    char status_hex[16];
+    snprintf(status_hex, sizeof(status_hex), "0x%08X", (unsigned int)msg->status);
+
+    msg_sys_fault.header.stamp = nh_->now();
+    msg_sys_fault.header.frame_id = frame_id_;
+    msg_sys_fault.status = msg->status;
+    msg_sys_fault.status_hex = status_hex;
+    msg_sys_fault.status_str = sys_fault_status_to_string(msg->status);
+    msg_sys_fault.g1_task = msg->g1Task;
+    msg_sys_fault.g2_file_num = msg->g2FileNum;
+    msg_sys_fault.g3_line_num = msg->g3LineNum;
+    msg_sys_fault.g4 = msg->g4;
+    msg_sys_fault.g5_lr = msg->g5Lr;
+    msg_sys_fault.pc = msg->pc;
+    msg_sys_fault.psr = msg->psr;
+
+    // The device repeats this message every 10s while a fault is latched, so only log on a change of status.
+    if (!sys_fault_status_valid_ || (sys_fault_status_last_ != msg->status))
+    {
+        sys_fault_status_valid_ = true;
+        sys_fault_status_last_ = msg->status;
+
+        rclcpp::Logger logger_sys_fault = rclcpp::get_logger("sys_fault");
+        if (msg->status & SYS_FAULT_STATUS_MASK_CRITICAL_ERROR)
+        {
+            RCLCPP_ERROR(logger_sys_fault, "InertialSenseROS: DID_SYS_FAULT %s [%s] task %u, file %u, line %u, g4 0x%08X, lr 0x%08X, pc 0x%08X, psr 0x%08X",
+                         status_hex, msg_sys_fault.status_str.c_str(), (unsigned int)msg->g1Task, (unsigned int)msg->g2FileNum, (unsigned int)msg->g3LineNum,
+                         (unsigned int)msg->g4, (unsigned int)msg->g5Lr, (unsigned int)msg->pc, (unsigned int)msg->psr);
+        }
+        else
+        {
+            RCLCPP_INFO(logger_sys_fault, "InertialSenseROS: DID_SYS_FAULT %s [%s]", status_hex, msg_sys_fault.status_str.c_str());
+        }
+    }
+
+    // Published unconditionally (no subscriber check) so the transient local QoS latches the fault for late subscribers.
+    if (rs_.sys_fault.enabled && (rs_.sys_fault.pub_sys_fault != NULL))
+        rs_.sys_fault.pub_sys_fault->publish(msg_sys_fault);
 }
 
 void InertialSenseROS::GPS_info_callback(eDataIDs DID, const gps_sat_t *const msg)

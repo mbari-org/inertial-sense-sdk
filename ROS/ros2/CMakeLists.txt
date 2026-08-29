@@ -53,6 +53,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
     "msg/DIDINS2.msg"
     "msg/DIDINS1.msg"
     "msg/DIDINS4.msg"
+    "msg/SysFault.msg"
     "srv/FirmwareUpdate.srv"
     "srv/RefLLAUpdate.srv"
     DEPENDENCIES std_msgs geometry_msgs diagnostic_msgs builtin_interfaces
