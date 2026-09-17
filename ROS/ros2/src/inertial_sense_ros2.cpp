@@ -1037,7 +1037,7 @@ void InertialSenseROS::configure_rtk()
                 start_rtk_server(*ntrip_provider);
             }
         }
-        rtkConfigBits_ |= RTK_CFG_BITS_BASE_OUTPUT_GPS1_RTCM3_SER2; // 0x400 — MSM out on S2 for PPK
+        rtkConfigBits_ |= RTK_CFG_BITS_BASE_OUTPUT_GPS1_RTCM3_SER2; // TODO (andermi) put this in config yaml somehow -- 0x400 — MSM out on S2 for PPK
         IS_.SendData(DID_FLASH_CONFIG, reinterpret_cast<uint8_t *>(&rtkConfigBits_), sizeof(rtkConfigBits_), offsetof(nvm_flash_cfg_t, RTKCfgBits));
     }
     else
