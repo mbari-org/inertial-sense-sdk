@@ -106,6 +106,11 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+#install(DIRECTORY
+#  config
+#  DESTINATION share/${PROJECT_NAME}
+#)
+
 #ament_add_gtest(test_${PROJECT_NAME}
 #    src/inertial_sense_ros2.cpp
 #    shared/src/ParamHelper.cpp
