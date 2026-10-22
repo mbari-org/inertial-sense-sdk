@@ -46,7 +46,7 @@ def generate_launch_description():
                  '/pvtgeodetic',
                  '/rfstatus',
             ],
-            cwd='/data',
+            cwd='/data/rosbags',
             output='screen'
         )
     ])
